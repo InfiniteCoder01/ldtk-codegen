@@ -237,11 +237,80 @@ pub mod layer {
     }
     pub use generate_layer;
 
-    pub fn cell_rect(position: Vec2<u32>, size: Vec2<u32>) -> Vec<Vec2<u32>> {
-        (position.y..position.y + size.y)
-            .flat_map(move |y| (position.x..position.x + size.x).map(move |x| Vec2::new(x, y)))
-            .collect()
+    pub struct RectangularRegion {
+        start: Vec2<u32>,
+        size: Vec2<u32>,
+        position: Vec2<u32>,
     }
+
+    impl RectangularRegion {
+        pub fn new(start: Vec2<u32>, size: Vec2<u32>) -> Self {
+            Self {
+                start,
+                size,
+                position: start,
+            }
+        }
+    }
+
+    impl Iterator for RectangularRegion {
+        type Item = Vec2<u32>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.position.y >= self.start.y + self.size.y {
+                return None;
+            }
+            let tile = self.position;
+            self.position.x += 1;
+            if self.position.x > self.start.x + self.size.x {
+                self.position.x = self.start.x;
+                self.position.y += 1;
+            }
+            Some(tile)
+        }
+    }
+
+    macro_rules! rectangular_region {
+        ($name: ident ($source: ident) -> $type: ty: $self: ident -> $expr: expr) => {
+            pub struct $name<'a, S: $source> {
+                start: Vec2<u32>,
+                size: Vec2<u32>,
+                position: Vec2<u32>,
+                source: &'a S,
+            }
+
+            impl<'a, S: $source> $name<'a, S> {
+                pub fn new(source: &'a S, start: Vec2<u32>, size: Vec2<u32>) -> Self {
+                    Self {
+                        source,
+                        start,
+                        size,
+                        position: start,
+                    }
+                }
+            }
+
+            impl<'a, S: $source> Iterator for $name<'a, S>  {
+                type Item = (Vec2<u32>, $type);
+
+                fn next(&mut $self) -> Option<Self::Item> {
+                    if $self.position.y >= $self.start.y + $self.size.y {
+                        return None;
+                    }
+                    let tile = ($self.position, $expr);
+                    $self.position.x += 1;
+                    if $self.position.x > $self.start.x + $self.size.x {
+                        $self.position.x = $self.start.x;
+                        $self.position.y += 1;
+                    }
+                    Some(tile)
+                }
+            }
+        };
+    }
+
+    rectangular_region!(IntGridRegion(IntGrid) -> &'a S::Tile: self -> self.source.get(self.position)?);
+    rectangular_region!(AutoLayerRegion(AutoLayer) -> Vec<Tile>: self -> self.source.get_autotile(self.position));
 
     // * -------------------------------------------------------------------------------- Int Grid -------------------------------------------------------------------------------- * //
     /// An integer grid layer trait
@@ -252,9 +321,14 @@ pub mod layer {
         fn get_mut(&mut self, position: impl Into<Vec2<i32>>) -> Option<&mut Self::Tile>;
         fn rect(
             &self,
-            position: impl Into<Vec2<i32>>,
+            start: impl Into<Vec2<i32>>,
             size: impl Into<Vec2<u32>>,
-        ) -> Vec<(Vec2<u32>, Self::Tile)>;
+        ) -> IntGridRegion<'_, Self>
+        where
+            Self: std::marker::Sized,
+        {
+            IntGridRegion::new(self, start.into().max(0).into(), size.into())
+        }
     }
 
     #[macro_export]
@@ -312,17 +386,6 @@ pub mod layer {
                     }
                     return self.tiles.get_mut(position.x as usize + position.y as usize * self.size.x as usize);
                 }
-
-                fn rect(
-                    &self,
-                    position: impl Into<Vec2<i32>>,
-                    size: impl Into<Vec2<u32>>
-                ) -> Vec<(Vec2<u32>, Self::Tile)> {
-                    layer::cell_rect(position.into().max(0).into(), size.into().min(self.size))
-                        .iter()
-                        .filter_map(|cell| self.get(*cell).map(|tile| (*cell,tile.clone())))
-                        .collect()
-                }
             }
 
             impl<T: Into<Vec2<i32>>> std::ops::Index<T> for $layer {
@@ -356,7 +419,18 @@ pub mod layer {
     /// An integer grid layer trait
     pub trait AutoLayer: Layer {
         fn tileset_id(&self) -> TilesetID;
-        fn get_tileset_tile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile>;
+        fn get_autotile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile>;
+
+        fn autotile_rect(
+            &self,
+            start: impl Into<Vec2<i32>>,
+            size: impl Into<Vec2<u32>>,
+        ) -> AutoLayerRegion<'_, Self>
+        where
+            Self: std::marker::Sized,
+        {
+            AutoLayerRegion::new(self, start.into().max(0).into(), size.into())
+        }
     }
 
     #[macro_export]
@@ -367,7 +441,7 @@ pub mod layer {
                     self.tileset
                 }
 
-                fn get_tileset_tile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile> {
+                fn get_autotile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile> {
                     let position = position.into();
                     if position.x < 0
                         || position.y < 0

@@ -11,6 +11,7 @@ keywords = ["gamedev", "graphics", "raylib"]
 categories = ["game"]
 
 [dependencies]
+anyhow = "1.0.72"
 
 [dependencies.raylib]
 version = "4.5.0"
