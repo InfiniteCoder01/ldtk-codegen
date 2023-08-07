@@ -80,10 +80,9 @@ pub struct RsEntityInstance {
 // * ------------------------------------ Layers ------------------------------------ * //
 pub enum RsLayerDefinition {
     IntGrid(RsIntGridDefinition),
+    Tiles(RsTilesDefinition),
     Entities,
 }
-
-pub struct RsAutoLayerDefinition {}
 
 pub struct RsIntGridDefinition {
     pub grid_size: u32,
@@ -91,6 +90,11 @@ pub struct RsIntGridDefinition {
     pub tile_variants: Vec<String>,
     pub auto_layer: Option<RsAutoLayerDefinition>,
 }
+pub struct RsTilesDefinition {
+    pub grid_size: u32,
+}
+
+pub struct RsAutoLayerDefinition {}
 
 // * ------------------------------------ Fields ------------------------------------ * //
 pub enum RsFieldType {

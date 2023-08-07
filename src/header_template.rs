@@ -309,7 +309,8 @@ pub mod layer {
         };
     }
 
-    rectangular_region!(IntGridRegion(IntGrid) -> &'a S::Tile: self -> self.source.get(self.position)?);
+    rectangular_region!(IntGridRegion(IntGrid) -> Option<&'a S::Tile>: self -> self.source.get(self.position));
+    rectangular_region!(TilesRegion(Tiles) -> Option<&'a Tile>: self -> self.source.get(self.position));
     rectangular_region!(AutoLayerRegion(AutoLayer) -> Vec<Tile>: self -> self.source.get_autotile(self.position));
 
     // * -------------------------------------------------------------------------------- Int Grid -------------------------------------------------------------------------------- * //
@@ -341,7 +342,7 @@ pub mod layer {
                 px_offset = $px_offset: expr,
                 parallax_factor = $parallax_factor: expr,
 
-            $(!auto_layer $auto_layer: ident)?
+            $(!auto_layer $auto_layer: ident = $tileset: expr;)?
 
             $layer_tile: ident:
                 $($tile_variant: ident),*
@@ -364,7 +365,6 @@ pub mod layer {
                     tiles: Vec<$layer_tile>,
                     $(
                         $auto_layer: Vec<Vec<Tile>>,
-                        tileset: TilesetID,
                     )?
             );
 
@@ -405,22 +405,94 @@ pub mod layer {
             }
 
             $(
-                layer::implement_auto_layer!($auto_layer, $layer);
+                layer::implement_auto_layer!($auto_layer = $tileset, $layer);
             )?
         };
     }
     pub(super) use generate_int_grid_layer;
 
-    // * -------------------------------------------------------------------------------- AutoLayer ------------------------------------------------------------------------------- * //
-    // TODO: Move to TileLayer once exists
+    // * ---------------------------------------------------------------------------------- Tiles --------------------------------------------------------------------------------- * //
     use super::Tile;
     use super::TilesetID;
 
-    /// An integer grid layer trait
-    pub trait AutoLayer: Layer {
-        fn tileset_id(&self) -> TilesetID;
-        fn get_autotile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile>;
+    /// A tile layer trait
+    pub trait Tiles: Layer {
+        const TILESET_ID: TilesetID;
 
+        fn get(&self, position: impl Into<Vec2<i32>>) -> Option<&Tile>;
+        fn get_mut(&mut self, position: impl Into<Vec2<i32>>) -> Option<&mut Option<Tile>>;
+
+        fn rect(
+            &self,
+            start: impl Into<Vec2<i32>>,
+            size: impl Into<Vec2<u32>>,
+        ) -> TilesRegion<'_, Self>
+        where
+            Self: std::marker::Sized,
+        {
+            TilesRegion::new(self, start.into().max(0).into(), size.into())
+        }
+    }
+
+    #[macro_export]
+    macro_rules! generate_tiles_layer {
+        (
+            $(!doc $layer_doc: literal)?
+            $layer: ident:
+                grid_size = $grid_size: expr,
+                guide_grid_size = $guide_grid_size: expr,
+                px_offset = $px_offset: expr,
+                parallax_factor = $parallax_factor: expr,
+                tileset = $tileset: expr,
+        ) => {
+            layer::generate_layer!(
+                $(!doc $layer_doc)?
+                $layer:
+                    grid_size = $grid_size,
+                    guide_grid_size = $guide_grid_size,
+                    px_offset = $px_offset,
+                    parallax_factor = $parallax_factor,
+                    tiles: Vec<Option<Tile>>,
+            );
+
+            impl layer::Tiles for $layer {
+                const TILESET_ID: TilesetID = $tileset;
+
+                fn get(&self, position: impl Into<Vec2<i32>>) -> Option<&Tile> {
+                    let position = position.into();
+                    if position.x < 0 || position.y < 0 || position.x as u32 >= self.size.x || position.y as u32 >= self.size.y {
+                        return None;
+                    }
+                    self.tiles.get(position.x as usize + position.y as usize * self.size.x as usize)?.as_ref()
+                }
+
+                fn get_mut(&mut self, position: impl Into<Vec2<i32>>) -> Option<&mut Option<Tile>> {
+                    let position = position.into();
+                    if position.x < 0 || position.y < 0 || position.x as u32 >= self.size.x || position.y as u32 >= self.size.y {
+                        return None;
+                    }
+                    return self.tiles.get_mut(position.x as usize + position.y as usize * self.size.x as usize);
+                }
+            }
+
+            impl<T: Into<Vec2<i32>>> std::ops::Index<T> for $layer {
+                type Output = Tile;
+
+                fn index(&self, position: T) -> &Self::Output {
+                    use layer::Tiles;
+                    return self.get(position).unwrap();
+                }
+            }
+        };
+    }
+    pub(super) use generate_tiles_layer;
+
+    // * -------------------------------------------------------------------------------- AutoLayer ------------------------------------------------------------------------------- * //
+    /// An auto layer trait
+    pub trait AutoLayer: Layer {
+        const TILESET_ID: TilesetID;
+
+        fn get_autotile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile>;
         fn autotile_rect(
             &self,
             start: impl Into<Vec2<i32>>,
@@ -435,11 +507,9 @@ pub mod layer {
 
     #[macro_export]
     macro_rules! implement_auto_layer {
-        ($source: ident, $layer: ident) => {
+        ($source: ident = $tileset: expr, $layer: ident) => {
             impl layer::AutoLayer for $layer {
-                fn tileset_id(&self) -> TilesetID {
-                    self.tileset
-                }
+                const TILESET_ID: TilesetID = $tileset;
 
                 fn get_autotile(&self, position: impl Into<Vec2<i32>>) -> Vec<Tile> {
                     let position = position.into();

@@ -6,7 +6,7 @@ pub fn layer_definition(
     layer_json: &LayerDefinition,
     code: &mut Scope,
     level: &mut codegen::Struct,
-) {
+) -> Result<()> {
     let layer_type_name = &layer_json.identifier;
 
     // * Tiles
@@ -42,9 +42,14 @@ pub fn layer_definition(
         fmt_vec!(layer_json.px_offset),
         fmt_vec!(!float layer_json.parallax_factor),
         if !layer_json.auto_rule_groups.is_empty() {
-            "\n        !auto_layer auto_tiles\n"
+            format!(
+                "\n        !auto_layer auto_tiles = {};\n",
+                layer_json
+                    .tileset_def_uid
+                    .context("Autotiled int grid doesn't have tileset!")?
+            )
         } else {
-            ""
+            "".to_owned()
         },
         tile_variants.join(",\n        "),
     ));
@@ -71,6 +76,8 @@ pub fn layer_definition(
             layer_type_name,
         )
         .vis("pub");
+
+    Ok(())
 }
 
 pub fn layer_instance(
@@ -94,7 +101,6 @@ pub fn layer_instance(
         let tileset_id = layer_json
             .tileset_def_uid
             .context("Tileset UID is not present in autotiled int grid!")?;
-        layer_rs.line(format!("tileset: {},", tileset_id));
         let tileset = definitions
             .tilesets
             .get(&tileset_id)

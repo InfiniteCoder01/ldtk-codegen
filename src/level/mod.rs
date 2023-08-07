@@ -1,5 +1,6 @@
-pub mod entities;
 pub mod int_grid;
+pub mod tiles;
+pub mod entities;
 use crate::definitions::*;
 
 // * ------------------------------------- Defs ------------------------------------- * //
@@ -19,13 +20,15 @@ pub fn generate_levels(
     for layer_json in &project.defs.layers {
         match layer_json.purple_type {
             Type::IntGrid => {
-                int_grid::layer_definition(preferences, definitions, layer_json, code, &mut level)
+                int_grid::layer_definition(preferences, definitions, layer_json, code, &mut level)?
             }
+            Type::Tiles => {
+                tiles::layer_definition(preferences, definitions, layer_json, code, &mut level)?
+            },
             Type::AutoLayer => todo!(),
             Type::Entities => {
                 entities::layer_definition(preferences, definitions, layer_json, code, &mut level)
             }
-            Type::Tiles => todo!(),
         }
     }
 
@@ -178,6 +181,9 @@ pub fn generate_world(
             match &definitions.layers[&layer_json.identifier] {
                 RsLayerDefinition::IntGrid(definition) => {
                     int_grid::layer_instance(definition, definitions, &mut layer_rs, layer_json)?
+                }
+                RsLayerDefinition::Tiles(definition) => {
+                    tiles::layer_instance(definition, definitions, &mut layer_rs, layer_json)?
                 }
                 RsLayerDefinition::Entities => {
                     entities::layer_instance(definitions, &mut layer_rs, layer_json)?

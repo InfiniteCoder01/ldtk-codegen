@@ -33,10 +33,24 @@ fn main() -> Result<()> {
             zoom: 2.0,
         });
 
+        for (pos, tile) in level.tiles.rect(0, level.tiles.size()).filter_map(|(pos, tile)| tile.map(|tile| (pos, tile))) {
+            d.draw_texture_rec(
+                tilesets.get(&demo::Tiles::TILESET_ID).unwrap(),
+                rrect(
+                    tile.position().x * 16,
+                    tile.position().y * 16,
+                    16 * if tile.flip().horizontal() { -1 } else { 1 },
+                    16 * if tile.flip().vertical() { -1 } else { 1 },
+                ),
+                (pos * Collisions::GRID_SIZE).casted::<Vector2>(),
+                Color::WHITE,
+            );
+        }
+
         for (pos, tiles) in level.collisions.autotile_rect(0, level.collisions.size()) {
             for tile in tiles {
                 d.draw_texture_rec(
-                    tilesets.get(&level.collisions.tileset_id()).unwrap(),
+                    tilesets.get(&Collisions::TILESET_ID).unwrap(),
                     rrect(
                         tile.position().x * 16,
                         tile.position().y * 16,
