@@ -11,7 +11,7 @@
 	"iid": "a2a4fe00-7820-11ed-b6fd-9b53622ece75",
 	"jsonVersion": "1.3.3",
 	"appBuildId": 469616,
-	"nextUid": 208,
+	"nextUid": 209,
 	"identifierStyle": "Capitalize",
 	"toc": [{
 		"identifier": "PlayerStart",
@@ -1256,7 +1256,7 @@
 					"uid": 98,
 					"type": "F_EntityRef",
 					"isArray": true,
-					"canBeNull": true,
+					"canBeNull": false,
 					"arrayMinLength": null,
 					"arrayMaxLength": null,
 					"editorDisplayMode": "RefLinkBetweenCenters",
@@ -1488,13 +1488,13 @@
 			"pivotY": 1,
 			"fieldDefs": [
 				{
-					"identifier": "texts",
+					"identifier": "text",
 					"doc": null,
-					"__type": "Array<Multilines>",
-					"uid": 169,
+					"__type": "Multilines",
+					"uid": 208,
 					"type": "F_Text",
-					"isArray": true,
-					"canBeNull": true,
+					"isArray": false,
+					"canBeNull": false,
 					"arrayMinLength": null,
 					"arrayMaxLength": null,
 					"editorDisplayMode": "ValueOnly",
@@ -2380,7 +2380,7 @@
 							"height": 16,
 							"defUid": 168,
 							"px": [760,128],
-							"fieldInstances": [{ "__identifier": "texts", "__type": "Array<Multilines>", "__value": ["Secret area!"], "__tile": null, "defUid": 169, "realEditorValues": [{
+							"fieldInstances": [{ "__identifier": "text", "__type": "Multilines", "__value": "Secret area!", "__tile": null, "defUid": 208, "realEditorValues": [{
 								"id": "V_String",
 								"params": ["Secret area!"]
 							}] }]
@@ -2397,7 +2397,7 @@
 							"height": 16,
 							"defUid": 168,
 							"px": [264,400],
-							"fieldInstances": [{ "__identifier": "texts", "__type": "Array<Multilines>", "__value": ["A door to the right was opened by some hidden mechanism."], "__tile": null, "defUid": 169, "realEditorValues": [{
+							"fieldInstances": [{ "__identifier": "text", "__type": "Multilines", "__value": "A door to the right was opened by some hidden mechanism.", "__tile": null, "defUid": 208, "realEditorValues": [{
 								"id": "V_String",
 								"params": ["A door to the right was opened by some hidden mechanism."]
 							}] }]
@@ -2442,7 +2442,7 @@
 							"height": 16,
 							"defUid": 168,
 							"px": [136,288],
-							"fieldInstances": [{ "__identifier": "texts", "__type": "Array<Multilines>", "__value": ["Well done!"], "__tile": null, "defUid": 169, "realEditorValues": [{
+							"fieldInstances": [{ "__identifier": "text", "__type": "Multilines", "__value": "Well done!", "__tile": null, "defUid": 208, "realEditorValues": [{
 								"id": "V_String",
 								"params": ["Well done!"]
 							}] }]

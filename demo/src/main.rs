@@ -23,6 +23,15 @@ fn main() -> Result<()> {
         );
     }
 
+    query_entities!(level.triggerables, entity, Entity::TriggerArea(trigger) => {
+        for entity in &trigger.on_trigger {
+            let entity = entity.find(&world).unwrap();
+            if let Entity::MessagePopUp(msg) = &entity.entity {
+                println!("{}", msg.text);
+            }
+        }
+    });
+
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::new(27, 27, 46, 255));

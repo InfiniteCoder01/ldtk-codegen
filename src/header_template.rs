@@ -589,6 +589,16 @@ pub mod layer {
         };
     }
     pub(super) use generate_entities_layer;
+
+    #[macro_export]
+    macro_rules! query_entities {
+        ($layer: expr, $entity: ident, $pattern: pat => $block: block) => {
+            for $entity in $layer.iter() {
+                if let $pattern = &$entity.entity $block
+            }
+        }
+    }
+    pub use query_entities;
 }
 
 #[derive([SERDE]Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

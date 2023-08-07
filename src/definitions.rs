@@ -114,43 +114,45 @@ pub enum RsFieldType {
 
 impl RsFieldType {
     pub fn parse(field: &FieldDefinition) -> Result<Self> {
-        pub fn parse_field_definition(field_type: &str) -> Result<RsFieldType> {
-            if let Some(generic) = field_type
-                .strip_prefix("Array<")
-                .and_then(|postfix| postfix.strip_suffix('>'))
-            {
-                return Ok(RsFieldType::Array(Box::new(parse_field_definition(
-                    generic,
-                )?)));
-            }
-
-            if let Some(enumeration) = field_type.strip_prefix("LocalEnum.") {
-                Ok(RsFieldType::Enum(enumeration.to_owned()))
+        fn parse_field_definition(field_type: &str, can_be_null: bool) -> Result<RsFieldType> {
+            let rs_type = if let Some(enumeration) = field_type.strip_prefix("LocalEnum.") {
+                RsFieldType::Enum(enumeration.to_owned())
             } else if let Some(_enumeration) = field_type.strip_prefix("ExternEnum.") {
                 // TODO: External enums
                 bail!("External enums are not supported yet.");
             } else {
                 match field_type {
-                    "Int" => Ok(RsFieldType::Int),
-                    "Float" => Ok(RsFieldType::Float),
-                    "String" | "Multilines" => Ok(RsFieldType::String),
-                    "Bool" => Ok(RsFieldType::Bool),
-                    "Color" => Ok(RsFieldType::Color),
-                    "Point" => Ok(RsFieldType::Point),
-                    "Tile" => Ok(RsFieldType::Tile),
-                    "FilePath" => Ok(RsFieldType::FilePath),
-                    "EntityRef" => Ok(RsFieldType::EntityRef),
+                    "Int" => RsFieldType::Int,
+                    "Float" => RsFieldType::Float,
+                    "String" | "Multilines" => RsFieldType::String,
+                    "Bool" => RsFieldType::Bool,
+                    "Color" => RsFieldType::Color,
+                    "Point" => RsFieldType::Point,
+                    "Tile" => RsFieldType::Tile,
+                    "FilePath" => RsFieldType::FilePath,
+                    "EntityRef" => RsFieldType::EntityRef,
                     _ => bail!("Unknown or unsupported field type: '{}'!", field_type),
                 }
-            }
+            };
+            Ok(if can_be_null {
+                RsFieldType::Option(Box::new(rs_type))
+            } else {
+                rs_type
+            })
         }
 
-        let rs_type = parse_field_definition(&field.field_definition_type)?;
-        Ok(if field.can_be_null {
-            RsFieldType::Option(Box::new(rs_type))
-        } else {
-            rs_type
-        })
+        Ok(
+            if let Some(generic) = field
+                .field_definition_type
+                .strip_prefix("Array<")
+                .and_then(|postfix| postfix.strip_suffix('>'))
+            {
+                let generic = parse_field_definition(generic, field.can_be_null)?;
+                RsFieldType::Array(Box::new(generic))
+            } else {
+                parse_field_definition(&field.field_definition_type, field.can_be_null)?
+            },
+        )
     }
 
     pub fn string_type(&self) -> String {
