@@ -1,4 +1,5 @@
 pub mod math {
+    SERDE_USE!();
     #[derive([SERDE]Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Vec2<T> {
         pub x: T,

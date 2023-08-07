@@ -6,17 +6,20 @@ pub fn generate_defs(
     project: &LdtkJson,
     code: &mut Scope,
 ) -> Result<()> {
-    let header = include_str!("header_template.rs")
-        .replace(
-            "[SERDE]",
-            if preferences.serde() {
-                "Serialize, Deserialize, "
-            } else {
-                ""
-            },
-        )
-        .trim()
-        .to_owned();
+    let header = include_str!("header_template.rs");
+    let header = header.replace(
+        "[SERDE]",
+        if preferences.serde() {
+            "Serialize, Deserialize, "
+        } else {
+            ""
+        },
+    );
+    let header = if preferences.serde() {
+        header.replace("SERDE_USE!();", "use serde::{Serialize, Deserialize};")
+    } else {
+        header.replace("\n    SERDE_USE!();", "")
+    };
     let header = if preferences.vec2s().is_empty() {
         header.replace("\n    CUSTOM_VECTORS!();", "")
     } else {

@@ -633,6 +633,7 @@ impl EntityRef {
     }
 }
 
+
 /* --- Definitions --- */
 
 /* Enums */

@@ -48,8 +48,7 @@ fn main() -> Result<()> {
     let mut scope = Scope::new();
     scope.raw("#![allow(dead_code)]");
     if preferences.serde() {
-        scope.import("serde", "Serialize");
-        scope.import("serde", "Deserialize");
+        scope.raw("use serde::{Serialize, Deserialize};");
     }
     typedefs::generate_defs(&preferences, &mut definitions, &project, &mut scope)
         .context("Failed to generate defenitions for LDTK project!")?;
