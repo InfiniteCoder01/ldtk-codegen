@@ -1,6 +1,6 @@
 [package]
 name = "ldtk-codegen"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["InfiniteCoder <nayka.0.lobach.01@gmail.com>"]
 description = "Generate typed rust code from LDtk Project"
