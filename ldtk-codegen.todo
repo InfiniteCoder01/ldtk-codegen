@@ -1,0 +1,41 @@
+Loading stuff:
+    ☐ External levels
+    ☐ World/Multi world (https://github.com/deepnight/ldtk/issues/231)
+
+Root:
+    ☐ Project's bg_color
+    ☐ TOC
+    ☐ World grid size (inside worlds)
+    ☐ World layout (inside worlds)?
+    ☐ defs.external_enums
+
+Level:
+    Layers:
+        ✔ IntGridLayer @done(23-07-31 23:31)
+        Entities:
+            ✔ Layer @started(23-08-01 13:11) @done(23-08-01 19:54) @lasted(6h43m)
+            ✔ Entity fields @started(23-08-05 13:06) @done(23-08-07 14:14) @lasted(2d1h8m19s)
+        AutoLayer:
+            ✔ The layer api @started(23-08-03 14:06) @done(23-08-03 16:07) @lasted(2h1m57s)
+            ☐ The layer itself
+            ☐ Runtime rule solver
+        ☐ Tiles
+    ✔ Fields @started(23-08-07 14:17) @done(23-08-07 14:28) @lasted(11m43s)
+    ☐ world_pos & world_depth
+    ☐ Background (bg_color (+defaultable), bg_pos, bg_path)
+    ☐ neighbours
+
+Tileset:
+    ✔ Tile flipping @started(23-08-03 16:39) @done(23-08-03 16:58) @lasted(19m36s)
+    ✔ Entity tiles @started(23-08-03 18:02) @done(23-08-03 18:47) @lasted(45m28s)
+    ☐ Tile data
+
+Code quality:
+    ☐ Replace panicable indices by get + context + try
+
+Generated code quality:
+    Docs:
+        ☐ Find missing docs
+    ✔ Add derives like default, clone, etc. @started(23-08-01 12:30) @done(23-08-01 12:54) @lasted(24m46s)
+    ✔ Use user-defined vectors @done(23-08-03 13:50)
+    ☐ RectIterator
