@@ -6,8 +6,8 @@ Just use cargo install or cargo binstall:<br />
 `cargo install ldtk-codegen`
 
 # Examples:
-Generate demo.rs from project demo.ldtk supporting raylib Vector2 and Color:<br />
+Generate demo.rs from project demo.ldtk using raylib Vector2 and Color:<br />
 `ldtk-codegen demo.ldtk -v 'raylib::prelude::Vector2' -c 'raylib::prelude::Color'`
 
-Generate project.rs from project demo.ldtk supporting serde and preserving case:<br />
+Generate project.rs from project demo.ldtk with serde support and preserving case:<br />
 `ldtk-codegen demo.ldtk -o project.rs -p -s`
