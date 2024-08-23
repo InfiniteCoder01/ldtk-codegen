@@ -11,48 +11,38 @@ pub fn layer_definition(
 
     // * Tiles
     let tile_type_name = format!("{}Tile", &layer_type_name);
-    let mut tile_variants = Vec::new();
+    let tile_enum = code.new_enum(&tile_type_name).vis("pub");
+    derive_rust_object!(tile_enum preferences.serde,);
+    tile_enum.new_variant("Empty");
+
+    let mut tile_variants = std::collections::HashMap::new();
     for (index, cell_value) in layer_json.int_grid_values.iter().enumerate() {
-        tile_variants.push(
-            cell_value
-                .identifier
-                .clone()
-                .unwrap_or_else(|| format!("Tile{}", index)),
-        );
+        let tile_name = cell_value
+            .identifier
+            .clone()
+            .unwrap_or_else(|| format!("Tile{}", index));
+        tile_enum.new_variant(&tile_name);
+        tile_variants.insert(cell_value.value, tile_name);
     }
 
-    code.raw(&format!(
-        r#"layer::generate_int_grid_layer!(
-    {}{layer_type_name}:
-        grid_size = {},
-        guide_grid_size = {},
-        px_offset = {},
-        parallax_factor = {},
-{}
-    {tile_type_name}:
-        {}
-);"#,
-        layer_json
-            .doc
-            .as_ref()
-            .map(|doc| format!("!doc \"{doc}\"\n    "))
-            .unwrap_or_default(),
-        layer_json.grid_size,
-        fmt_vec!(layer_json.guide_grid wid/hei),
-        fmt_vec!(layer_json.px_offset),
-        fmt_vec!(!float layer_json.parallax_factor),
-        if !layer_json.auto_rule_groups.is_empty() {
-            format!(
-                "\n        !auto_layer auto_tiles = {};\n",
-                layer_json
-                    .tileset_def_uid
-                    .context("Autotiled int grid doesn't have tileset!")?
-            )
-        } else {
-            "".to_owned()
-        },
-        tile_variants.join(",\n        "),
-    ));
+    let layer_struct = code.new_struct(layer_type_name).vis("pub");
+    derive_rust_object!(layer_struct preferences.serde,);
+    layer_struct.new_field("size", "UVec2").vis("pub");
+    layer_struct
+        .new_field("tiles", format!("Vec<{tile_type_name}>"))
+        .vis("pub");
+
+    if !layer_json.auto_rule_groups.is_empty() {
+        layer_struct.new_field("auto_tiles", "Vec<Vec<Tile>>");
+    }
+
+    super::impl_layer_trait(code, layer_type_name, layer_json);
+    super::impl_indexable_layer(code, layer_type_name, &tile_type_name, false);
+    code.new_impl(layer_type_name).impl_trait("traits::IntGrid");
+
+    if !layer_json.auto_rule_groups.is_empty() {
+        super::impl_auto_layer(code, layer_type_name, layer_json)?;
+    }
 
     // * Update definitions
     tile_variants.insert(0, "Empty".to_owned());
@@ -72,7 +62,7 @@ pub fn layer_definition(
 
     level
         .new_field(
-            &preferences.to_case(&layer_json.identifier, Case::Snake),
+            preferences.to_case(&layer_json.identifier, Case::Snake),
             layer_type_name,
         )
         .vis("pub");
@@ -86,13 +76,13 @@ pub fn layer_instance(
     layer_rs: &mut Block,
     layer_json: &LayerInstance,
 ) -> Result<()> {
-    layer_rs.line(format!("size: {},", fmt_vec!(layer_json.c wid/hei)));
+    layer_rs.line(format!("size: <UVec2 as VectorImpl>::new({} as _, {} as _),", layer_json.c_wid, layer_json.c_hei));
     let mut tiles = Block::new("tiles: vec!");
     for tile in &layer_json.int_grid_csv {
         tiles.line(format!(
             "{}::{},",
             definition.tile_enum,
-            definition.tile_variants[*tile as usize].clone()
+            definition.tile_variants[tile].clone()
         ));
     }
     tiles.after(",");
@@ -116,7 +106,7 @@ pub fn layer_instance(
                 tile.src[1] as u32 / tileset.tile_size,
             );
             tiles[tile_pos.0 + tile_pos.1 * layer_json.c_wid as usize].push(format!(
-                "Tile::new(Vec2::new({}, {}), {})",
+                "Tile::new(<UVec2 as VectorImpl>::new({} as _, {} as _), {})",
                 tileset_tile.0,
                 tileset_tile.1,
                 match tile.f {

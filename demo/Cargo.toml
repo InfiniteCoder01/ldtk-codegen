@@ -1,8 +1,8 @@
 [package]
 name = "demo"
-version = "0.0.0"
+version = "0.2.0"
 edition = "2021"
-authors = ["InfiniteCoder <nayka.0.lobach.01@gmail.com>"]
+authors = ["InfiniteCoder <info@infinitecoder.org>"]
 description = "Demo for LDtk CodeGen"
 readme = "README.md"
 repository = "https://github.com/InfiniteCoder01/ldtk-codegen/"

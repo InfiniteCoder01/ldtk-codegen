@@ -9,22 +9,13 @@ pub use num::Float;
 pub use paste::paste;
 
 pub struct Preferences {
-    preserve_case: bool,
-    serde: bool,
-    vec2s: Vec<String>,
-    colors: Vec<String>,
+    pub preserve_case: bool,
+    pub serde: bool,
+    pub vector: Option<String>,
+    pub color: Option<String>,
 }
 
 impl Preferences {
-    pub fn new(preserve_case: bool, serde: bool, vec2s: Vec<String>, colors: Vec<String>) -> Self {
-        Self {
-            preserve_case,
-            serde,
-            vec2s,
-            colors,
-        }
-    }
-
     pub fn to_case(&self, str: &str, case: Case) -> String {
         if self.preserve_case {
             str.to_owned()
@@ -33,18 +24,13 @@ impl Preferences {
             str.to_case(case)
         }
     }
+}
 
-    pub fn serde(&self) -> bool {
-        self.serde
-    }
-
-    pub fn vec2s(&self) -> &Vec<String> {
-        &self.vec2s
-    }
-
-    pub fn colors(&self) -> &Vec<String> {
-        &self.colors
-    }
+pub fn format_color(color: &str) -> Result<String> {
+    color
+        .strip_prefix('#')
+        .map(|color| format!("<Color as ColorImpl>::from_hex(0x{color}FF)"))
+        .context("Color should start with #!")
 }
 
 #[derive(Default)]
@@ -87,7 +73,7 @@ pub enum RsLayerDefinition {
 pub struct RsIntGridDefinition {
     pub grid_size: u32,
     pub tile_enum: String,
-    pub tile_variants: Vec<String>,
+    pub tile_variants: HashMap<i64, String>,
     pub auto_layer: Option<RsAutoLayerDefinition>,
 }
 pub struct RsTilesDefinition {
@@ -164,9 +150,9 @@ impl RsFieldType {
             RsFieldType::Float => "f32".to_owned(),
             RsFieldType::String => "String".to_owned(),
             RsFieldType::Bool => "bool".to_owned(),
-            RsFieldType::Color => "LDTKColor".to_owned(),
-            RsFieldType::Point => "Vec2<u32>".to_owned(),
-            RsFieldType::Tile => "(TilesetID, Vec2<u32>)".to_owned(),
+            RsFieldType::Color => "Color".to_owned(),
+            RsFieldType::Point => "UVec2".to_owned(),
+            RsFieldType::Tile => "(TilesetID, UVec2)".to_owned(),
             RsFieldType::FilePath => "std::path::PathBuf".to_owned(),
             RsFieldType::EntityRef => "EntityRef".to_owned(),
         }
@@ -187,7 +173,7 @@ impl RsFieldType {
         let value = value.context("Mandatory object can't be null!")?;
 
         macro_rules! primitive {
-            ($fn: ident, $expectation: literal) => {
+            ($fn:ident, $expectation:literal) => {
                 value.$fn().context(format!(
                     concat!("Expected ", $expectation, ", found {}!"),
                     value
@@ -196,7 +182,7 @@ impl RsFieldType {
         }
 
         macro_rules! object_i64 {
-            ($object: ident.$field: ident) => {
+            ($object:ident.$field:ident) => {
                 $object
                     .get(stringify!($field))
                     .context(format!(
@@ -230,16 +216,11 @@ impl RsFieldType {
             }
             RsFieldType::String => format!("\"{}\".to_owned()", primitive!(as_str, "string")),
             RsFieldType::Bool => primitive!(as_bool, "bool").to_string(),
-            RsFieldType::Color => format!(
-                "LDTKColor::from(0x{}FF)",
-                primitive!(as_str, "color")
-                    .strip_prefix('#')
-                    .context("Color should start with #!")?
-            ),
+            RsFieldType::Color => format_color(primitive!(as_str, "color"))?,
             RsFieldType::Point => {
                 let point = primitive!(as_object, "GridPoint");
                 format!(
-                    "Vec2::new({}, {})",
+                    "<UVec2 as VectorImpl>::new({} as _, {} as _)",
                     object_i64!(point.cx),
                     object_i64!(point.cy),
                 )
@@ -252,7 +233,7 @@ impl RsFieldType {
                     .get(&tileset_id)
                     .context("Tile field tileset was not found!")?;
                 format!(
-                    "({}, Vec2::new({}, {}))",
+                    "({}, <UVec2 as VectorImpl>::new({} as _, {} as _))",
                     tileset_id,
                     object_i64!(tile.x) as u32 / tileset.tile_size,
                     object_i64!(tile.y) as u32 / tileset.tile_size,
@@ -272,7 +253,7 @@ impl RsFieldType {
 
                 let entity_ref = definitions
                     .entity_instances
-                    .get(&entity_iid.to_owned())
+                    .get(entity_iid)
                     .context("EntityRef field points to non-existing entity!")?;
                 format!(
                     "EntityRef::new({}, {}, {})",
@@ -286,7 +267,7 @@ impl RsFieldType {
 // * ------------------------------------ Macros ------------------------------------ * //
 #[macro_export]
 macro_rules! derive_rust_object {
-    ($object: ident $serde: expr, $($trait: ident),* $(!partial $($partial_trait: ident),*)?) => {
+    ($object:ident $serde:expr, $($trait:ident),* $(!partial $($partial_trait:ident),*)?) => {
         if $serde {
             $object.derive("Serialize");
             $object.derive("Deserialize");
@@ -305,65 +286,33 @@ macro_rules! derive_rust_object {
 
 #[macro_export]
 macro_rules! generate_impl {
-    ($code: ident $(trait $trait: literal for)? $object: expr => {
-        $(const $const: ident: $const_type: ty = $const_val: expr;)*
-        $(type $type: ident = $type_val: expr;)*
-        $(fn $fn: ident (&self$(, $fn_arg: ident: $fn_arg_type: ty)*)$(-> $fn_ret: ty)? {$($fn_stmt: stmt;)*})*
-        $(fnmut $fn_mut: ident (&mut self$(, $fn_mut_arg: ident: $fn_mut_arg_type: ty)*)$(-> $fn_mut_ret: ty)? {$($fn_mut_stmt: stmt;)*})*
+    ($code:ident $(trait $trait:literal for)? $object:expr => {
+        $(const $const:ident: $const_type:ty = $const_val:expr;)*
+        $(type $type:ident = $type_val:expr;)*
+        $(get $get:ident () -> $get_ret:ty = $get_value:expr;)*
+        $(fn $fn:ident (&self$(, $fn_arg:ident: $fn_arg_type:ty)*)$(-> $fn_ret:ty)? {$($fn_stmt:stmt;)*})*
+        $(fnmut $fn_mut:ident (&mut self$(, $fn_mut_arg:ident: $fn_mut_arg_type:ty)*)$(-> $fn_mut_ret:ty)? {$($fn_mut_stmt:stmt;)*})*
     }) => {
         let generated_impl = $code.new_impl($object)$(.impl_trait($trait))?;
         $(generated_impl.associate_const(stringify!($const), stringify!($const_type), $const_val, "");)*
         $(generated_impl.associate_type(stringify!($type), $type_val);)*
+        $(generated_impl.new_fn(stringify!($get)).ret(stringify!($get_ret)).line($get_value);)*
         $(generated_impl.new_fn(stringify!($fn))
             .arg_ref_self()
             $(.arg(stringify!($fn_arg), stringify!($fn_arg_type)))*
             $(.ret(stringify!($fn_ret)))?
-            $(.line(stringify!($fn_stmt)))*
+            $(.line(concat!(stringify!($fn_stmt), ";")))*
             ;
         )*
         $(generated_impl.new_fn(stringify!($fn_mut))
             .arg_mut_self()
             $(.arg(stringify!($fn_mut_arg), stringify!($fn_mut_arg_type)))*
             $(.ret(stringify!($fn_mut_ret)))?
-            $(.line(stringify!($fn_mut_stmt)))*
+            $(.line(concat!(stringify!($fn_mut_stmt), ";")))*
             ;
         )*
     };
 }
 
-#[macro_export]
-macro_rules! fmt_vec {
-    ($object: ident.$prefix: ident) => {
-        paste! {
-            format!("Vec2::new({}, {})", $object.[<$prefix _x>], $object.[<$prefix _y>])
-        }
-    };
-    (!slice ($source: expr)) => {
-        format!("Vec2::new({}, {})", $source[0], $source[1])
-    };
-    (!float $object: ident.$prefix: ident) => {
-        paste! {
-            format!(
-                "Vec2::new({}, {})",
-                format!("{:.1$}", ($object.[<$prefix _x>] as f32), ($object.[<$prefix _x>] as f32).fract().to_string().len().max(3) - 2),
-                format!("{:.1$}", ($object.[<$prefix _y>] as f32), ($object.[<$prefix _y>] as f32).fract().to_string().len().max(3) - 2),
-            )
-        }
-    };
-    (!float slice $source: expr) => {
-        format!(
-            "Vec2::new({}, {})",
-            format!("{:.1$}", ($source[0] as f32), ($source[0] as f32).fract().to_string().len().max(3) - 2),
-            format!("{:.1$}", ($source[1] as f32), ($source[1] as f32).fract().to_string().len().max(3) - 2),
-        )
-    };
-    ($object: ident$(.$prefix: ident)? $field1: ident/$field2: ident) => {
-        paste! {
-            format!("Vec2::new({}, {})", $object.[<$($prefix _)? $field1>], $object.[<$($prefix _)? $field2>])
-        }
-    };
-}
-
 pub use derive_rust_object;
-pub use fmt_vec;
 pub use generate_impl;

@@ -9,28 +9,28 @@ pub fn layer_definition(
 ) -> Result<()> {
     let layer_type_name = &layer_json.identifier;
 
-    code.raw(&format!(
-        r#"layer::generate_tiles_layer!(
-    {}{layer_type_name}:
-        grid_size = {},
-        guide_grid_size = {},
-        px_offset = {},
-        parallax_factor = {},
-        tileset = {},
-);"#,
-        layer_json
-            .doc
-            .as_ref()
-            .map(|doc| format!("!doc \"{doc}\"\n    "))
-            .unwrap_or_default(),
-        layer_json.grid_size,
-        fmt_vec!(layer_json.guide_grid wid/hei),
-        fmt_vec!(layer_json.px_offset),
-        fmt_vec!(!float layer_json.parallax_factor),
-        layer_json
-            .tileset_def_uid
-            .context("Tiles layer doesn't have tileset!")?,
-    ));
+    let layer_struct = code.new_struct(layer_type_name).vis("pub");
+    derive_rust_object!(layer_struct preferences.serde,);
+    layer_struct.new_field("size", "UVec2").vis("pub");
+    layer_struct
+        .new_field("tiles", "Vec<Option<Tile>>".to_owned())
+        .vis("pub");
+
+    super::impl_layer_trait(code, layer_type_name, layer_json);
+    super::impl_indexable_layer(code, layer_type_name, "Tile", true);
+    code.new_impl(layer_type_name)
+        .impl_trait("traits::Tiles")
+        .associate_const(
+            "TILESET_ID",
+            "TilesetID",
+            format!(
+                "{}",
+                layer_json
+                    .tileset_def_uid
+                    .context("Tiles layer doesn't have a tileset ID!")?
+            ),
+            "",
+        );
 
     // * Update definitions
     definitions.layers.insert(
@@ -42,7 +42,7 @@ pub fn layer_definition(
 
     level
         .new_field(
-            &preferences.to_case(&layer_json.identifier, Case::Snake),
+            preferences.to_case(&layer_json.identifier, Case::Snake),
             layer_type_name,
         )
         .vis("pub");
@@ -64,7 +64,7 @@ pub fn layer_instance(
         .get(&tileset_id)
         .context("Tileset from autotiled int grid was not found!")?;
 
-    layer_rs.line(format!("size: {},", fmt_vec!(layer_json.c wid/hei)));
+    layer_rs.line(format!("size: <UVec2 as VectorImpl>::new({} as _, {} as _),", layer_json.c_wid, layer_json.c_hei));
     let mut tiles = vec!["None".to_owned(); layer_json.c_wid as usize * layer_json.c_hei as usize];
     for tile in &layer_json.grid_tiles {
         let tile_pos = (
@@ -76,7 +76,7 @@ pub fn layer_instance(
             tile.src[1] as u32 / tileset.tile_size,
         );
         tiles[tile_pos.0 + tile_pos.1 * layer_json.c_wid as usize] = format!(
-            "Some(Tile::new(Vec2::new({}, {}), {}))",
+            "Some(Tile::new(<UVec2 as VectorImpl>::new({} as _, {} as _), {}))",
             tileset_tile.0,
             tileset_tile.1,
             match tile.f {

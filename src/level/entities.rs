@@ -6,13 +6,14 @@ pub fn definitions(
     project: &LdtkJson,
     code: &mut Scope,
 ) -> Result<()> {
+    code.raw("/* --- Entities --- */");
     let mut entity = codegen::Enum::new("Entity");
     entity.vis("pub");
-    derive_rust_object!(entity preferences.serde(), PartialEq, PartialOrd);
+    derive_rust_object!(entity preferences.serde,);
     for entity_json in &project.defs.entities {
         let entity_rs = code.new_struct(&entity_json.identifier);
         entity_rs.vis("pub");
-        derive_rust_object!(entity_rs preferences.serde(), PartialEq, PartialOrd);
+        derive_rust_object!(entity_rs preferences.serde,);
         let mut entity_definition = RsEntityDefinition::default();
 
         for field in &entity_json.field_defs {
@@ -35,7 +36,7 @@ pub fn definitions(
 
     let entity = code.new_impl("Entity");
     macro_rules! generate_get_const {
-        ($fn: ident -> $ret: ty; $variant: ident => $line: expr) => {
+        ($fn:ident -> $ret:ty; $variant:ident => $line:expr) => {
             entity
                 .new_fn(stringify!($fn))
                 .vis("pub")
@@ -43,15 +44,20 @@ pub fn definitions(
                 .ret(stringify!($ret))
                 .push_block({
                     let mut match_block = Block::new("match self");
-                    for $variant in &project.defs.entities {
-                        match_block.line(format!("Self::{}(_) => {},", $variant.identifier, $line));
+                    if project.defs.entities.is_empty() {
+                        match_block.line("_ => unreachable!()");
+                    } else {
+                        for $variant in &project.defs.entities {
+                            match_block
+                                .line(format!("Self::{}(_) => {},", $variant.identifier, $line));
+                        }
                     }
                     match_block
                 });
         };
     }
 
-    generate_get_const!(pivot -> Vec2<f32>; variant => fmt_vec!(!float variant.pivot));
+    generate_get_const!(pivot -> FVec2; variant => format!("<FVec2 as VectorImpl>::new({} as _, {} as _)", variant.pivot_x, variant.pivot_y));
     generate_get_const!(render_mode -> RenderMode; variant => match variant.render_mode {
         RenderMode::Cross => "RenderMode::Cross".to_owned(),
         RenderMode::Ellipse => "RenderMode::Ellipse".to_owned(),
@@ -61,7 +67,7 @@ pub fn definitions(
             let tileset = variant.tileset_id.context("Tile render mode doesn't have tileset ID!")?;
             let tile_size = definitions.tilesets.get(&tileset).context("Entity tileset not found!")?.tile_size;
             format!(
-                "RenderMode::Tile {{ tileset: {}, tile: Vec2::new({}, {}), size: Vec2::new({}, {}) }}",
+                "RenderMode::Tile {{ tileset: {}, tile: <UVec2 as VectorImpl>::new({} as _, {} as _), size: <UVec2 as VectorImpl>::new({} as _, {} as _) }}",
                 tileset,
                 rect.x as u32 / tile_size,
                 rect.y as u32 / tile_size,
@@ -83,24 +89,40 @@ pub fn layer_definition(
 ) {
     let layer_type_name = &layer_json.identifier;
 
-    code.raw(&format!(
-        r#"layer::generate_entities_layer!(
-    {}{layer_type_name}:
-        grid_size = {},
-        guide_grid_size = {},
-        px_offset = {},
-        parallax_factor = {},
-);"#,
-        layer_json
-            .doc
-            .as_ref()
-            .map(|doc| format!("!doc \"{doc}\"\n    "))
-            .unwrap_or_default(),
-        layer_json.grid_size,
-        fmt_vec!(layer_json.guide_grid wid/hei),
-        fmt_vec!(layer_json.px_offset),
-        fmt_vec!(!float layer_json.parallax_factor),
-    ));
+    let layer_struct = code.new_struct(layer_type_name).vis("pub");
+    derive_rust_object!(layer_struct preferences.serde,);
+    layer_struct.new_field("size", "UVec2").vis("pub");
+    layer_struct
+        .new_field("entities", "Vec<EntityObject>".to_owned())
+        .vis("pub");
+
+    super::impl_layer_trait(code, layer_type_name, layer_json);
+
+    generate_impl!(code trait "traits::Entities" for layer_type_name => {
+        fn entities(&self) -> &Vec<EntityObject> {
+            return &self.entities;
+        }
+
+        fnmut entities_mut(&mut self) -> &mut Vec<EntityObject> {
+            return &mut self.entities;
+        }
+    });
+
+    generate_impl!(code trait "std::ops::Deref" for layer_type_name => {
+        type Target = "Vec<EntityObject>";
+
+        fn deref(&self) -> &Self::Target {
+            use traits::Entities;;
+            return self.entities();
+        }
+    });
+
+    generate_impl!(code trait "std::ops::DerefMut" for layer_type_name => {
+        fnmut deref_mut(&mut self) -> &mut Self::Target {
+            use traits::Entities;;
+            return self.entities_mut();
+        }
+    });
 
     // * Update definitions
     definitions
@@ -109,7 +131,7 @@ pub fn layer_definition(
 
     level
         .new_field(
-            &preferences.to_case(&layer_json.identifier, Case::Snake),
+            preferences.to_case(&layer_json.identifier, Case::Snake),
             layer_type_name,
         )
         .vis("pub");
@@ -120,7 +142,10 @@ pub fn layer_instance(
     layer_rs: &mut Block,
     layer_json: &LayerInstance,
 ) -> Result<()> {
-    layer_rs.line(format!("size: {},", fmt_vec!(layer_json.c wid/hei)));
+    layer_rs.line(format!(
+        "size: <UVec2 as VectorImpl>::new({} as _, {} as _),",
+        layer_json.c_wid, layer_json.c_hei
+    ));
     let mut entities = Block::new("entities: vec!");
     for entity in &layer_json.entity_instances {
         let definition = definitions
@@ -145,9 +170,9 @@ pub fn layer_instance(
         }
 
         instance.after(&format!(
-            "), {}, {}),",
-            fmt_vec!(!float slice entity.px),
-            fmt_vec!(entity width/height)
+            "), <FVec2 as VectorImpl>::new({} as _, {} as _), <UVec2 as VectorImpl>::new({} as _, {} as _)),",
+            entity.px[0], entity.px[1],
+            entity.width, entity.height
         ));
         entities.push_block(instance);
     }

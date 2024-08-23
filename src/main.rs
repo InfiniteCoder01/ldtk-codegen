@@ -19,25 +19,33 @@ struct Args {
     output: Option<PathBuf>,
 
     /// Preserve case of identifiers
-    #[arg(short, long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     preserve_case: bool,
 
-    /// Derive Serialize and Deserialize
-    #[arg(short, long, default_value_t = false)]
+    /// Derive serde Serialize and Deserialize
+    #[arg(long, default_value_t = false)]
     serde: bool,
 
-    /// Make 2D vectors convertable to/from those types (For example raylib::prelude::Vector2 for raylib)
-    #[arg(short, long, default_value = "", value_delimiter = ',')]
-    vec2s: Vec<String>,
+    /// Use this as a vector type (`raylib::prelude::Vector2` for example)
+    /// ldtk_module::VectorImpl has to be implemented for this type
+    /// You can append <T> to the end of the type for generic vectors (`speedy::dimen::Vector2<T>`)
+    #[arg(long)]
+    vector: Option<String>,
 
-    /// Make colors convertable to/from those types (For example raylib::prelude::Color for raylib)
-    #[arg(short, long, default_value = "", value_delimiter = ',')]
-    colors: Vec<String>,
+    /// Use this as a color type (`raylib::prelude::Color` for example)
+    /// ldtk_module::ColorImpl has to be implemented for this type
+    #[arg(long)]
+    color: Option<String>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let preferences = Preferences::new(args.preserve_case, args.serde, args.vec2s, args.colors);
+    let preferences = Preferences {
+        preserve_case: args.preserve_case,
+        serde: args.serde,
+        vector: args.vector,
+        color: args.color,
+    };
     let mut definitions = RsDefinitions::default();
 
     let project = serde_json::from_str::<schema::LdtkJson>(
@@ -46,10 +54,6 @@ fn main() -> Result<()> {
     .context("Failed to deserialize project file!")?;
 
     let mut scope = Scope::new();
-    scope.raw("#![allow(dead_code)]");
-    if preferences.serde() {
-        scope.raw("use serde::{Serialize, Deserialize};");
-    }
     typedefs::generate_defs(&preferences, &mut definitions, &project, &mut scope)
         .context("Failed to generate defenitions for LDTK project!")?;
     level::generate_levels(&preferences, &mut definitions, &project, &mut scope)

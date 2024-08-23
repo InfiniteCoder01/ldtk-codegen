@@ -11,3 +11,5 @@ Generate demo.rs from project demo.ldtk using raylib Vector2 and Color:<br />
 
 Generate project.rs from project demo.ldtk with serde support and preserving case:<br />
 `ldtk-codegen demo.ldtk -o project.rs -p -s`
+
+For more info, see `ldtk-codegen --help`
