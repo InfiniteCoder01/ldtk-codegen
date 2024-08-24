@@ -12,8 +12,8 @@ pub fn layer_definition(
     // * Tiles
     let tile_type_name = format!("{}Tile", &layer_type_name);
     let tile_enum = code.new_enum(&tile_type_name).vis("pub");
-    derive_rust_object!(tile_enum preferences.serde,);
-    tile_enum.new_variant("Empty");
+    derive_rust_object!(tile_enum preferences.serde, Copy, Default, Hash !partial Eq, Ord);
+    tile_enum.new_variant("Empty").annotation("#[default]");
 
     let mut tile_variants = std::collections::HashMap::new();
     for (index, cell_value) in layer_json.int_grid_values.iter().enumerate() {
